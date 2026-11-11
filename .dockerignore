@@ -1,0 +1,5 @@
+.venv
+__pycache__
+.git
+test_app.py
+calcular_sli.py
