@@ -94,7 +94,7 @@ def criar_compra():
         "valor": dados["valor"],
     }
     COMPRAS.append(nova)
-    return jsonify(nova), 200
+    return jsonify(nova), 201
 
 @app.get("/v1/falha")
 def falha_simulada():
