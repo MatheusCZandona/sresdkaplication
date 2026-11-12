@@ -3,6 +3,9 @@ import logging
 import time
 from flask import Flask, jsonify, request, g
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import os
+
+INSTANCIA = os.environ.get("INSTANCIA", "local")
 
 app = Flask(__name__)
 
@@ -39,6 +42,9 @@ def registrar_requisicao(resposta):
         "status": resposta.status_code,
         "duracao_ms": round(duracao_ms, 2),
     }))
+    
+    resposta.headers["X-Instancia"] = INSTANCIA
+    
     return resposta
 #lgos até aqui
 

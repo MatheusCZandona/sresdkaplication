@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: compras-api
+    static_configs:
+      - targets: ["api1:5000", "api2:5000"]
