@@ -14,23 +14,32 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+
   api1:
     build: .
     environment:
       INSTANCIA: api1
       DATABASE_URL: postgresql://compras:compras@db:5432/compras
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   api2:
     build: .
     environment:
       INSTANCIA: api2
       DATABASE_URL: postgresql://compras:compras@db:5432/compras
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   nginx:
     image: nginx:alpine

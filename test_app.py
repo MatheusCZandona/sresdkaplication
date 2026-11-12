@@ -2,6 +2,7 @@ import pytest
 
 import app as app_module
 from repositorio import RepositorioEmMemoria
+from repositorio import RepositorioComCache
 
 
 @pytest.fixture
@@ -55,3 +56,39 @@ def test_v2_limite_invalido(client):
 
 def test_v1_continua_devolvendo_lista(client):
     assert isinstance(client.get("/v1/compras").get_json(), list)
+
+class RedisFalso:
+    def __init__(self):
+        self.dados = {}
+
+    def get(self, chave):
+        return self.dados.get(chave)
+
+    def set(self, chave, valor, ex=None):
+        self.dados[chave] = valor
+
+
+class RepoContador(RepositorioEmMemoria):
+    def __init__(self, compras):
+        super().__init__(compras)
+        self.consultas = 0
+
+    def buscar(self, compra_id):
+        self.consultas += 1
+        return super().buscar(compra_id)
+
+
+def test_cache_evita_segunda_consulta_ao_banco():
+    base = RepoContador([{"id": 1, "item": "teclado", "valor": 150.0}])
+    repo = RepositorioComCache(base, RedisFalso())
+    repo.buscar(1)
+    repo.buscar(1)
+    assert base.consultas == 1
+
+
+def test_cache_nao_guarda_compra_inexistente():
+    base = RepoContador([])
+    repo = RepositorioComCache(base, RedisFalso())
+    repo.buscar(5)
+    repo.buscar(5)
+    assert base.consultas == 2
