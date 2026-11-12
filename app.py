@@ -4,11 +4,13 @@ import time
 from flask import Flask, jsonify, request, g
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import os
+from repositorio import RepositorioEmMemoria, RepositorioPostgres
 
 INSTANCIA = os.environ.get("INSTANCIA", "local")
 
 app = Flask(__name__)
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 #logs para observabilidade
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -62,10 +64,13 @@ DURACAO = Histogram( #histograma do tempo das requisições
 )
 #fim das metricas
 
-COMPRAS = [
-    {"id": 1, "item": "teclado", "valor": 150.0},
-    {"id": 2, "item": "mouse", "valor": 80.0},
-]
+if DATABASE_URL:
+    repo = RepositorioPostgres(DATABASE_URL)
+else:
+    repo = RepositorioEmMemoria([
+        {"id": 1, "item": "teclado", "valor": 150.0},
+        {"id": 2, "item": "mouse", "valor": 80.0},
+    ])
 
 @app.get("/")
 def home():
@@ -77,49 +82,47 @@ def health():
 
 @app.get("/v1/compras")
 def listar_compras():
-    return jsonify(COMPRAS), 200
+    return jsonify(repo.listar()), 200
 
-@app.get("/v1/compras/<int:compra_id>") # busca por id - lsita completa em v1
+
+@app.get("/v1/compras/<int:compra_id>")
 def buscar_compra(compra_id):
-    for compra in COMPRAS:
-        if compra["id"] == compra_id:
-            return jsonify(compra), 200
-    return jsonify(erro="compra não encontrada"), 404
+    compra = repo.buscar(compra_id)
+    if compra is None:
+        return jsonify(erro="compra não encontrada"), 404
+    return jsonify(compra), 200
 
 
-@app.post("/v1/compras") # post em v1
+@app.post("/v1/compras")
 def criar_compra():
     dados = request.get_json(silent=True)
 
     if not dados or "item" not in dados or "valor" not in dados:
         return jsonify(erro="campos 'item' e 'valor' são obrigatórios"), 400
 
-    nova = {
-        "id": max((c["id"] for c in COMPRAS), default=0) + 1,
-        "item": dados["item"],
-        "valor": dados["valor"],
-    }
-    COMPRAS.append(nova)
+    nova = repo.criar(dados["item"], dados["valor"])
     return jsonify(nova), 201
+
+
 
 @app.get("/v1/falha")
 def falha_simulada():
     return jsonify(erro="falha simulada para testes"), 500
 
-@app.get("/v2/compras") # faz a listagem por paginação em v2 (versão para testes)
+@app.get("/v2/compras")
 def listar_compras_v2():
-    limite = request.args.get("limite", default=10, type=int) # limite de quantos objetos mostrar
-    offset = request.args.get("offset", default=0, type=int) #offset a partir de qual objeto mostrar
+    limite = request.args.get("limite", default=10, type=int)
+    offset = request.args.get("offset", default=0, type=int)
 
     if limite < 1 or offset < 0:
-        return jsonify(erro="'limite' deve ser >= 1 e 'offset' >= 0"), 400 #bad request por erro do usuario
+        return jsonify(erro="'limite' deve ser >= 1 e 'offset' >= 0"), 400
 
-    pagina = COMPRAS[offset:offset + limite] #exata parte do vetor q se deve mostrar
+    compras = repo.listar()
+    pagina = compras[offset:offset + limite]
     return jsonify(
         dados=pagina,
-        meta={"total": len(COMPRAS), "limite": limite, "offset": offset},
+        meta={"total": len(compras), "limite": limite, "offset": offset},
     ), 200
-
 
 @app.get("/metrics") #prometheus para metricas
 def metricas():
