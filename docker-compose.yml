@@ -1,13 +1,36 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: compras
+      POSTGRES_PASSWORD: compras
+      POSTGRES_DB: compras
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U compras -d compras"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api1:
     build: .
     environment:
-      - INSTANCIA=api1
+      INSTANCIA: api1
+      DATABASE_URL: postgresql://compras:compras@db:5432/compras
+    depends_on:
+      db:
+        condition: service_healthy
 
   api2:
     build: .
     environment:
-      - INSTANCIA=api2
+      INSTANCIA: api2
+      DATABASE_URL: postgresql://compras:compras@db:5432/compras
+    depends_on:
+      db:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -30,5 +53,11 @@ services:
     image: grafana/grafana
     ports:
       - "3000:3000"
+    volumes:
+      - grafana-dados:/var/lib/grafana
     depends_on:
       - prometheus
+
+volumes:
+  dados-postgres:
+  grafana-dados:

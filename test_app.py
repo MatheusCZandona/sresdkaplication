@@ -1,17 +1,17 @@
 import pytest
 
-from app import app, COMPRAS
+import app as app_module
+from repositorio import RepositorioEmMemoria
 
 
 @pytest.fixture
 def client():
-    COMPRAS.clear()
-    COMPRAS.extend([
+    app_module.repo = RepositorioEmMemoria([
         {"id": 1, "item": "teclado", "valor": 150.0},
         {"id": 2, "item": "mouse", "valor": 80.0},
     ])
-    app.config["TESTING"] = True
-    return app.test_client()
+    app_module.app.config["TESTING"] = True
+    return app_module.app.test_client()
 
 
 def test_health(client):
