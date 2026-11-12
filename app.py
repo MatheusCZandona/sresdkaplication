@@ -4,7 +4,8 @@ import time
 from flask import Flask, jsonify, request, g
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import os
-from repositorio import RepositorioEmMemoria, RepositorioPostgres
+import redis
+from repositorio import RepositorioComCache, RepositorioEmMemoria, RepositorioPostgres
 
 INSTANCIA = os.environ.get("INSTANCIA", "local")
 
@@ -71,6 +72,13 @@ else:
         {"id": 1, "item": "teclado", "valor": 150.0},
         {"id": 2, "item": "mouse", "valor": 80.0},
     ])
+
+REDIS_URL = os.environ.get("REDIS_URL")
+if REDIS_URL:
+    cliente_redis = redis.Redis.from_url(
+        REDIS_URL, socket_connect_timeout=0.5, socket_timeout=0.5
+    )
+    repo = RepositorioComCache(repo, cliente_redis, ttl_segundos=30)
 
 @app.get("/")
 def home():

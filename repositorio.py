@@ -1,7 +1,15 @@
 from abc import ABC, abstractmethod
 import psycopg
 from psycopg.rows import dict_row
+import json
+import redis
+from prometheus_client import Counter
 
+CACHE = Counter(
+    "cache_consultas_total",
+    "Consultas ao cache por resultado",
+    ["resultado"],
+)
 
 class RepositorioCompras(ABC):
     @abstractmethod
@@ -66,3 +74,37 @@ class RepositorioPostgres(RepositorioCompras):
                 "RETURNING id, item, valor",
                 (item, valor),
             ).fetchone()
+
+class RepositorioComCache(RepositorioCompras):
+    def __init__(self, repositorio, cliente_redis, ttl_segundos=30):
+        self._repo = repositorio
+        self._redis = cliente_redis
+        self._ttl = ttl_segundos
+
+    def listar(self):
+        return self._repo.listar()
+
+    def buscar(self, compra_id):
+        chave = f"compra:{compra_id}"
+
+        try:
+            em_cache = self._redis.get(chave)
+        except redis.RedisError:
+            CACHE.labels("erro").inc()
+            return self._repo.buscar(compra_id)
+
+        if em_cache is not None:
+            CACHE.labels("hit").inc()
+            return json.loads(em_cache)
+
+        CACHE.labels("miss").inc()
+        compra = self._repo.buscar(compra_id)
+        if compra is not None:
+            try:
+                self._redis.set(chave, json.dumps(compra), ex=self._ttl)
+            except redis.RedisError:
+                pass
+        return compra
+
+    def criar(self, item, valor):
+        return self._repo.criar(item, valor)

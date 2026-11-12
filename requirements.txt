@@ -13,4 +13,5 @@ psycopg==3.3.9
 psycopg-binary==3.3.9
 Pygments==2.21.0
 pytest==9.2.0
+redis==8.1.0
 Werkzeug==3.1.9
